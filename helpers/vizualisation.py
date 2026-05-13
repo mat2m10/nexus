@@ -9,7 +9,8 @@ def map_to_color(x, y, z, df, value):
     b = z / df[value].max() if df[value].max() != 0 else 0
     return (r, g, b)
 
-def build_deme_colors(n_demes, k):
+def build_deme_colors(k):
+    n_demes = k*k
     deme_colors = {}
     for m in range(n_demes):
         r, c = decode_deme(m, k)
