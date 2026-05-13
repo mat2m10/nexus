@@ -1,0 +1,9 @@
+{
+    "k": 10,
+    "Ne": 10000,
+    "M": 0.5,
+    "n_per_deme": 100,
+    "n_loci": 2000,
+    "n_mutations": 1,
+    "random_seed": 42
+}
