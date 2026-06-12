@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+ 
+[project]
+name = "nexus"
+version = "0.1.0"
+description = "Coalescent simulation and population-genetics pipeline."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scikit-learn",
+    "matplotlib",
+    "pandas",      # for the parquet-based gene scripts
+    "pyarrow",     # parquet engine for pandas
+]
+ 
+[tool.setuptools]
+# Only ship the helpers package; ignore scripts/, notebooks/, data/.
+packages = ["helpers"]
+ 

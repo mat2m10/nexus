@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Coalescent simulation on a k x k stepping-stone grid of demes.
 
-Parameters come from a JSON config (default: params.json) and can be
-overridden individually on the command line, e.g.:
+Parameters come from a JSON config (default: <project_root>/params.json) and
+can be overridden individually on the command line, e.g.:
 
-    python coalescence.py
-    python coalescence.py --Ne 5000 --random_seed 42
-    python coalescence.py --config bigNe.json --k 8
-    python coalescence.py --plot
+    python scripts/coalescence.py
+    python scripts/coalescence.py --Ne 5000 --random_seed 42
+    python scripts/coalescence.py --config bigNe.json --k 8
+    python scripts/coalescence.py --plot
+
+Requires the project to be installed in editable mode so `helpers` resolves:
+
+    pip install -e .
 """
 
 import argparse
@@ -20,6 +24,11 @@ from sklearn.decomposition import PCA
 from helpers.grid import create_grid
 from helpers.tree import build_ancestral_genotype
 
+# Default config/output paths are resolved relative to the project root
+# (the parent of this script's folder) so they work from any directory.
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(HERE)
+
 
 def parse_args():
     # First pass: figure out which config file to load (so it can supply
@@ -27,7 +36,7 @@ def parse_args():
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument(
         "--config",
-        default="params.json",
+        default=os.path.join(PROJECT_ROOT, "params.json"),
         help="Path to JSON config providing default parameters.",
     )
     known, _ = pre.parse_known_args()
@@ -53,7 +62,11 @@ def parse_args():
     parser.add_argument("--n_loci", type=int, help="Number of loci.")
     parser.add_argument("--n_mutations", type=int, help="Number of mutations to drop.")
     parser.add_argument("--random_seed", type=int, help="RNG seed.")
-    parser.add_argument("--outdir", default="data", help="Directory for output files.")
+    parser.add_argument(
+        "--outdir",
+        default=os.path.join(PROJECT_ROOT, "data"),
+        help="Directory for output files.",
+    )
     parser.add_argument(
         "--plot",
         action="store_true",
@@ -102,7 +115,6 @@ def plot(args, coords, stem):
     matplotlib.use("Agg")  # headless-safe: saves files without a display.
     import matplotlib.pyplot as plt
 
-    from helpers.grid import create_grid
     from helpers.vizualisation import (
         build_deme_colors,
         visualize_grid,
