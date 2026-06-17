@@ -1,7 +1,9 @@
 pyproject.toml
 helpers/__init__.py
+helpers/cli.py
 helpers/grid.py
 helpers/phenotype.py
+helpers/popmap.py
 helpers/tree.py
 helpers/vizualisation.py
 nexus.egg-info/PKG-INFO

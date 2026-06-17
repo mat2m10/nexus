@@ -1,9 +1,11 @@
 {
-    "k": 10,
-    "Ne": 10000,
-    "M": 0.5,
-    "n_per_deme": 100,
-    "n_loci": 2000,
-    "n_mutations": 1,
-    "random_seed": 42
+  "k": 3,
+  "Ne": 100,
+  "M": 1.0,
+  "n_per_deme": 8,
+  "n_loci": 60,
+  "n_mutations": 20,
+  "random_seed": 7,
+  "F": 0.1,
+  "number_of_genes": 4
 }

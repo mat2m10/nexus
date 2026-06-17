@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Population × gene grid painter</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1b1f27; --muted:#6b7280;
+    --line:#dfe3ea; --accent:#4f46e5; --accent-soft:#eef0fe;
+    --empty:#e6e8ee; --custom:#334155;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       font-size:14px;line-height:1.45}
+  header{padding:18px 22px 10px}
+  header h1{margin:0;font-size:17px;letter-spacing:-0.01em}
+  header p{margin:3px 0 0;color:var(--muted);font-size:13px}
+  main{display:flex;gap:18px;align-items:flex-start;padding:8px 22px 28px;flex-wrap:wrap}
+  .gridwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+            padding:16px;flex:1 1 540px;min-width:320px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+         padding:16px;width:300px;flex:0 0 auto}
+  .toolbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+  .field{display:flex;flex-direction:column;gap:3px}
+  .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  input[type=number]{font-family:var(--mono);font-size:13px;padding:5px 7px;width:74px;
+        border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+  button{font:inherit;font-size:13px;padding:6px 11px;border:1px solid var(--line);
+         border-radius:6px;background:#fff;color:var(--ink);cursor:pointer}
+  button:hover{border-color:#b9c0cc}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:#4338ca}
+  button.ghost{background:transparent}
+  svg{display:block;width:100%;height:auto;touch-action:none;user-select:none}
+  .legend{margin-top:10px;font-size:12px;color:var(--muted);font-family:var(--mono)}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+     margin:0 0 8px}
+  .section{margin-bottom:18px}
+  .swatches{display:flex;flex-direction:column;gap:6px}
+  .sw{display:flex;align-items:center;gap:8px;padding:4px;border:1px solid transparent;
+      border-radius:7px;cursor:pointer}
+  .sw.active{border-color:var(--accent);background:var(--accent-soft)}
+  .sw .chip{width:22px;height:22px;border-radius:5px;border:1px solid #00000022;flex:0 0 auto}
+  .sw input{width:64px;font-family:var(--mono);font-size:12px;padding:3px 5px;
+            border:1px solid var(--line);border-radius:5px}
+  .sw .name{font-size:12px;color:var(--muted);flex:1}
+  .sw .rm{color:#b04a4a;font-size:15px;padding:0 4px;border:none;background:none}
+  .modes{display:flex;gap:6px;margin-bottom:10px}
+  .modes button{flex:1}
+  .modes button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .cellinfo{font-family:var(--mono);font-size:12px;background:#f7f8fa;border:1px solid var(--line);
+            border-radius:7px;padding:9px 10px;line-height:1.7}
+  .cellinfo .k{color:var(--muted)}
+  .setrow{display:flex;gap:6px;margin-top:8px}
+  .io{display:flex;flex-direction:column;gap:7px}
+  .io .row{display:flex;gap:7px}
+  .io .row button{flex:1}
+  #tip{position:fixed;pointer-events:none;background:#1b1f27;color:#fff;font-family:var(--mono);
+       font-size:11px;padding:4px 7px;border-radius:5px;opacity:0;transition:opacity .08s;z-index:9}
+  dialog{border:1px solid var(--line);border-radius:10px;padding:0;max-width:560px;width:90vw}
+  dialog .dlg{padding:16px}
+  dialog h3{margin:0 0 8px;font-size:14px}
+  textarea{width:100%;height:230px;font-family:var(--mono);font-size:12px;border:1px solid var(--line);
+           border-radius:7px;padding:9px;resize:vertical}
+  dialog .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+  input[type=file]{font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Population × gene grid painter</h1>
+  <p>Click or drag to paint a value, or select a cell and type one. Exports the
+     <code>population_gene_map</code> CSV the pipeline reads.</p>
+</header>
+
+<main>
+  <div class="gridwrap">
+    <div class="toolbar">
+      <div class="field"><label>k (grid side)</label><input id="inK" type="number" min="1" value="10"></div>
+      <div class="field"><label>number_of_genes</label><input id="inG" type="number" min="1" value="4"></div>
+      <button id="btnNew">New blank grid</button>
+      <label class="field" style="gap:4px">
+        <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Import CSV</span>
+        <input id="inFile" type="file" accept=".csv">
+      </label>
+    </div>
+    <svg id="grid" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="panel">
+    <div class="section">
+      <h2>Mode</h2>
+      <div class="modes">
+        <button id="modePaint" class="on">Paint</button>
+        <button id="modeSelect">Select &amp; type</button>
+      </div>
+      <div class="cellinfo" id="cellinfo">
+        <div><span class="k">no cell selected</span></div>
+      </div>
+      <div class="setrow">
+        <input id="cellVal" type="number" step="any" placeholder="value" disabled>
+        <button id="cellSet" disabled>Set</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Value palette</h2>
+      <div class="swatches" id="swatches"></div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button id="addSw" class="ghost">+ value</button>
+        <button id="eraser" class="ghost">Eraser (0)</button>
+      </div>
+    </div>
+
+    <div class="section io">
+      <h2>Export</h2>
+      <div class="row">
+        <button id="expCsv" class="primary">Export CSV</button>
+        <button id="expJson">selection_targets.json</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="tip"></div>
+
+<dialog id="dlg"><div class="dlg">
+  <h3 id="dlgTitle">Export</h3>
+  <textarea id="dlgText" readonly></textarea>
+  <div class="actions">
+    <button id="dlgCopy">Copy</button>
+    <button id="dlgDownload" class="primary">Download</button>
+    <button id="dlgClose" class="ghost">Close</button>
+  </div>
+</div></dialog>
+
+<script>
+// ---- palette of named colours (from the original painter) -------------------
+const COLORS = [
+  ["red",[255,0,0]], ["green",[0,170,0]], ["blue",[0,90,255]], ["yellow",[235,200,0]],
+  ["cyan",[0,190,200]], ["magenta",[220,0,210]], ["orange",[255,140,0]],
+  ["slate",[80,95,120]], ["black",[30,30,30]],
+];
+const rgbHex = ([r,g,b]) => "#"+[r,g,b].map(x=>x.toString(16).padStart(2,"0")).join("");
+
+const EMPTY = getComputedStyle(document.documentElement).getPropertyValue("--empty").trim();
+const CUSTOM = getComputedStyle(document.documentElement).getPropertyValue("--custom").trim();
+
+// ---- state ------------------------------------------------------------------
+const S = {
+  k:10, g:4, s:2,
+  cells:new Map(),            // "deme:gene" -> {deme,deme_row,deme_col,gene,sub_row,sub_col,value}
+  palette:[                   // each: {value, name, rgb}
+    {value:1, name:COLORS[0][0], rgb:COLORS[0][1]},
+    {value:2, name:COLORS[2][0], rgb:COLORS[2][1]},
+    {value:3, name:COLORS[1][0], rgb:COLORS[1][1]},
+    {value:4, name:COLORS[6][0], rgb:COLORS[6][1]},
+  ],
+  active:0,                   // palette index, or -1 for eraser
+  paint:true,
+  selKey:null,
+  painting:false,
+};
+const key = (deme,gene) => deme+":"+gene;
+const ssize = g => Math.ceil(Math.sqrt(g));
+
+function buildBlank(k,g){
+  const s = ssize(g);
+  const cells = new Map();
+  for(let deme=0; deme<k*k; deme++){
+    const dr = Math.floor(deme/k), dc = deme%k;
+    for(let gene=1; gene<=g; gene++){
+      const g0 = gene-1, sr = Math.floor(g0/s), sc = g0%s;
+      cells.set(key(deme,gene),
+        {deme, deme_row:dr, deme_col:dc, gene, sub_row:sr, sub_col:sc, value:0});
+    }
+  }
+  S.k=k; S.g=g; S.s=s; S.cells=cells; S.selKey=null;
+}
+
+// ---- colour mapping ---------------------------------------------------------
+function paletteFor(value){
+  if(value===0) return null;
+  for(const p of S.palette) if(p.value===value) return p;
+  return null;
+}
+function colorFor(value){
+  if(value===0) return EMPTY;
+  const p = paletteFor(value);
+  return p ? rgbHex(p.rgb) : CUSTOM;
+}
+
+// ---- render -----------------------------------------------------------------
+const svg = document.getElementById("grid");
+function render(){
+  const n = S.k*S.s;
+  const cell = Math.max(8, Math.min(34, Math.floor(560/n)));
+  const px = n*cell;
+  svg.setAttribute("viewBox", `0 0 ${px} ${px}`);
+  svg.setAttribute("width", px);
+  svg.setAttribute("height", px);
+  let inner = "";
+  // cells
+  for(const c of S.cells.values()){
+    const row = c.deme_row*S.s + c.sub_row;
+    const col = c.deme_col*S.s + c.sub_col;
+    const x = col*cell, y = row*cell;
+    inner += `<rect data-key="${key(c.deme,c.gene)}" x="${x}" y="${y}" width="${cell}" height="${cell}" `
+         + `fill="${colorFor(c.value)}" stroke="#ffffff" stroke-width="0.7"></rect>`;
+    if(c.value!==0 && cell>=20){
+      const tc = paletteFor(c.value) && (paletteFor(c.value).rgb.reduce((a,b)=>a+b,0) < 360) ? "#fff" : "#1b1f27";
+      inner += `<text x="${x+cell/2}" y="${y+cell/2+3}" text-anchor="middle" font-size="${Math.min(11,cell*0.4)}" `
+           + `fill="${tc}" font-family="monospace" pointer-events="none">${fmt(c.value)}</text>`;
+    }
+  }
+  // deme borders (thick) — pointer-events off so they never swallow a cell click
+  for(let dr=0; dr<S.k; dr++) for(let dc=0; dc<S.k; dc++){
+    inner += `<rect x="${dc*S.s*cell}" y="${dr*S.s*cell}" width="${S.s*cell}" height="${S.s*cell}" `
+         + `fill="none" stroke="#555a66" stroke-width="1.4" pointer-events="none"></rect>`;
+  }
+  svg.innerHTML = inner;
+  document.getElementById("legend").textContent =
+    `${S.k}×${S.k} demes · each deme = ${S.s}×${S.s} cells · genes 1–${S.g} · `
+    + `deme = row·k + col · gene = sub_row·s + sub_col + 1`;
+}
+function fmt(v){ return Number.isInteger(v) ? String(v) : String(v); }
+
+// ---- interaction ------------------------------------------------------------
+function bindSvg(){
+  svg.addEventListener("mousedown", e=>{ if(e.target.dataset.key){ S.painting=true; hit(e.target.dataset.key); }});
+  svg.addEventListener("mousemove", e=>{
+    if(e.target.dataset.key){ showTip(e, e.target.dataset.key); if(S.painting && S.paint) paintKey(e.target.dataset.key); }
+    else hideTip();
+  });
+  svg.addEventListener("mouseleave", hideTip);
+  window.addEventListener("mouseup", ()=>{ S.painting=false; });
+}
+function hit(k){
+  if(S.paint) paintKey(k);
+  select(k);
+}
+function paintKey(k){
+  const c = S.cells.get(k); if(!c) return;
+  c.value = (S.active===-1) ? 0 : S.palette[S.active].value;
+  render(); select(k);
+}
+function select(k){
+  S.selKey = k;
+  const c = S.cells.get(k);
+  const info = document.getElementById("cellinfo");
+  info.innerHTML = `<div><span class="k">deme</span> ${c.deme} `
+    + `<span class="k">(row ${c.deme_row}, col ${c.deme_col})</span></div>`
+    + `<div><span class="k">gene</span> ${c.gene} &nbsp; <span class="k">value</span> ${fmt(c.value)}</div>`;
+  const inp = document.getElementById("cellVal"), btn = document.getElementById("cellSet");
+  inp.disabled = false; btn.disabled = false; inp.value = c.value;
+}
+document.getElementById("cellSet").addEventListener("click", ()=>{
+  if(!S.selKey) return;
+  const v = parseFloat(document.getElementById("cellVal").value);
+  if(Number.isNaN(v)) return;
+  S.cells.get(S.selKey).value = v; render(); select(S.selKey);
+});
+
+const tip = document.getElementById("tip");
+function showTip(e,k){
+  const c = S.cells.get(k);
+  tip.textContent = `deme ${c.deme} · gene ${c.gene} · ${fmt(c.value)}`;
+  tip.style.left = (e.clientX+12)+"px"; tip.style.top = (e.clientY+12)+"px"; tip.style.opacity=1;
+}
+function hideTip(){ tip.style.opacity=0; }
+
+// ---- palette UI -------------------------------------------------------------
+function renderSwatches(){
+  const box = document.getElementById("swatches"); box.innerHTML="";
+  S.palette.forEach((p,i)=>{
+    const row = document.createElement("div");
+    row.className = "sw"+(S.active===i?" active":"");
+    row.innerHTML =
+      `<span class="chip" style="background:${rgbHex(p.rgb)}"></span>`
+     +`<input type="number" step="any" value="${p.value}" title="value">`
+     +`<span class="name">${p.name}</span>`
+     +`<button class="rm" title="remove">×</button>`;
+    row.addEventListener("click", e=>{
+      if(e.target.tagName==="INPUT") return;
+      if(e.target.classList.contains("rm")){ S.palette.splice(i,1); if(S.active>=S.palette.length) S.active=0; renderSwatches(); return; }
+      S.active=i; renderSwatches();
+    });
+    row.querySelector("input").addEventListener("change", e=>{
+      const v = parseFloat(e.target.value); if(!Number.isNaN(v)){ p.value=v; render(); }
+    });
+    box.appendChild(row);
+  });
+}
+document.getElementById("addSw").addEventListener("click", ()=>{
+  const used = new Set(S.palette.map(p=>p.name));
+  const next = COLORS.find(c=>!used.has(c[0])) || COLORS[S.palette.length%COLORS.length];
+  const maxV = S.palette.reduce((m,p)=>Math.max(m,p.value),0);
+  S.palette.push({value:maxV+1, name:next[0], rgb:next[1]});
+  S.active = S.palette.length-1; renderSwatches();
+});
+document.getElementById("eraser").addEventListener("click", ()=>{ S.active=-1; renderSwatches(); });
+
+// ---- modes ------------------------------------------------------------------
+const mP = document.getElementById("modePaint"), mS = document.getElementById("modeSelect");
+mP.addEventListener("click", ()=>{ S.paint=true;  mP.classList.add("on"); mS.classList.remove("on"); });
+mS.addEventListener("click", ()=>{ S.paint=false; mS.classList.add("on"); mP.classList.remove("on"); });
+
+// ---- new grid ---------------------------------------------------------------
+document.getElementById("btnNew").addEventListener("click", ()=>{
+  const k = Math.max(1, parseInt(document.getElementById("inK").value)||1);
+  const g = Math.max(1, parseInt(document.getElementById("inG").value)||1);
+  buildBlank(k,g); render(); resetCellInfo();
+});
+function resetCellInfo(){
+  document.getElementById("cellinfo").innerHTML = `<div><span class="k">no cell selected</span></div>`;
+  document.getElementById("cellVal").disabled=true; document.getElementById("cellSet").disabled=true;
+}
+
+// ---- CSV import / export ----------------------------------------------------
+document.getElementById("inFile").addEventListener("change", ev=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { importCsv(reader.result); ev.target.value=""; };
+  reader.readAsText(f);
+});
+function importCsv(text){
+  const lines = text.trim().split(/\r?\n/);
+  const head = lines[0].split(",").map(s=>s.trim());
+  const idx = name => head.indexOf(name);
+  const need = ["deme","deme_row","deme_col","gene","sub_row","sub_col","value"];
+  if(need.some(n=>idx(n)===-1)){ alert("CSV needs columns: "+need.join(", ")); return; }
+  const cells = new Map(); let maxRow=0, maxGene=0;
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const f = lines[i].split(",");
+    const c = {
+      deme:+f[idx("deme")], deme_row:+f[idx("deme_row")], deme_col:+f[idx("deme_col")],
+      gene:+f[idx("gene")], sub_row:+f[idx("sub_row")], sub_col:+f[idx("sub_col")],
+      value:parseFloat(f[idx("value")])||0,
+    };
+    cells.set(key(c.deme,c.gene), c);
+    maxRow=Math.max(maxRow,c.deme_row); maxGene=Math.max(maxGene,c.gene);
+  }
+  S.cells=cells; S.k=maxRow+1; S.g=maxGene; S.s=ssize(S.g);
+  document.getElementById("inK").value=S.k; document.getElementById("inG").value=S.g;
+  render(); resetCellInfo();
+}
+function exportCsv(){
+  const rows = [...S.cells.values()].sort((a,b)=> a.deme-b.deme || a.gene-b.gene);
+  const head = "deme,deme_row,deme_col,gene,sub_row,sub_col,value";
+  const body = rows.map(c=>[c.deme,c.deme_row,c.deme_col,c.gene,c.sub_row,c.sub_col,fmt(c.value)].join(",")).join("\n");
+  return head+"\n"+body+"\n";
+}
+function exportJson(){
+  const out = {};
+  for(const c of S.cells.values()){
+    const p = paletteFor(c.value);
+    if(c.value===0 || !p) continue;            // only painted, palette-coloured cells
+    const pop = c.deme+1;                        // 1-indexed, matching the original tool
+    (out[pop] = out[pop] || {})["gene_"+c.gene] = p.rgb;
+  }
+  return JSON.stringify(out, null, 2);
+}
+
+// ---- export dialog (download + copy) ---------------------------------------
+const dlg = document.getElementById("dlg");
+let dlPayload = {name:"", text:""};
+function openExport(title, filename, text){
+  document.getElementById("dlgTitle").textContent = title;
+  document.getElementById("dlgText").value = text;
+  dlPayload = {name:filename, text};
+  dlg.showModal();
+}
+document.getElementById("expCsv").addEventListener("click", ()=>{
+  openExport("Export grid CSV", `population_gene_map_k${S.k}_g${S.g}.csv`, exportCsv());
+});
+document.getElementById("expJson").addEventListener("click", ()=>{
+  openExport("Export selection_targets.json", "selection_targets.json", exportJson());
+});
+document.getElementById("dlgDownload").addEventListener("click", ()=>{
+  const blob = new Blob([dlPayload.text], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = dlPayload.name; a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById("dlgCopy").addEventListener("click", async ()=>{
+  try{ await navigator.clipboard.writeText(dlPayload.text); document.getElementById("dlgCopy").textContent="Copied"; }
+  catch(_){ document.getElementById("dlgText").select(); document.execCommand("copy"); }
+  setTimeout(()=>document.getElementById("dlgCopy").textContent="Copy", 1200);
+});
+document.getElementById("dlgClose").addEventListener("click", ()=>dlg.close());
+
+// ---- init -------------------------------------------------------------------
+buildBlank(S.k, S.g);
+bindSvg();
+render();
+renderSwatches();
+</script>
+</body>
+</html>
