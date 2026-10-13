@@ -34,17 +34,22 @@ def load_config(path):
         )
 
 
-def base_parser(description, project_root):
+def base_parser(description, project_root, argv=None):
     """Return (parser, config): a parser pre-seeded with --config plus the
-    loaded config dict, to be applied with parser.set_defaults(**config)."""
+    loaded config dict, to be applied with parser.set_defaults(**config).
+
+    `argv` is the argument list to pre-scan for --config (default: sys.argv)."""
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument(
         "--config",
         default=os.path.join(project_root, "params.json"),
         help="Path to JSON config providing default parameters.",
     )
-    known, _ = pre.parse_known_args()
-    config = load_config(known.config)
+    known, rest = pre.parse_known_args(argv)
+    if ("-h" in rest or "--help" in rest) and not os.path.exists(known.config):
+        config = {}  # let --help work without a params.json
+    else:
+        config = load_config(known.config)
     parser = argparse.ArgumentParser(
         parents=[pre],
         description=description,

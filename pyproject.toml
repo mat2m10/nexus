@@ -14,6 +14,9 @@ dependencies = [
     "pandas",      # for the parquet-based gene scripts
     "pyarrow",     # parquet engine for pandas
 ]
+
+[project.scripts]
+nexus = "helpers.pipeline:main"
  
 [tool.setuptools]
 # Only ship the helpers package; ignore scripts/, notebooks/, data/.
