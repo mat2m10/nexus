@@ -9,6 +9,7 @@ description = "Coalescent simulation and population-genetics pipeline."
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
+    "scipy",       # clustering (scipy.cluster.hierarchy, scipy.spatial.distance)
     "scikit-learn",
     "matplotlib",
     "pandas",      # for the parquet-based gene scripts
