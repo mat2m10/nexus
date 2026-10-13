@@ -183,6 +183,19 @@ nexus/
 
 ---
 
+## Notebooks
+
+`notebooks/` holds exploratory notebooks. They are committed **without
+outputs** to keep the repository small. To strip outputs automatically on every
+commit, install [nbstripout](https://github.com/kynan/nbstripout) once per clone:
+
+```bash
+pip install nbstripout
+nbstripout --install --keep-id
+```
+
+---
+
 ## Reproducibility
 
 Every random step runs through a single seeded generator
