@@ -23,7 +23,9 @@ A single run of `scripts/simulate_population.py` performs the whole pipeline:
 3. SNPs with minor-allele frequency (MAF) above 0.5 are **flipped** so that `1`
    always codes the minor allele.
 4. SNPs are **clustered into `number_of_genes` genes** by correlation
-   (hierarchical clustering, Ward linkage).
+   (hierarchical clustering, Ward linkage). Monomorphic SNPs (zero variance,
+   common with small `n_per_deme`) have no defined correlation, so they are
+   dropped first and the count is printed.
 5. The genes are laid **end to end on one chromosome**, and each SNP is given a
    final, meaningful name — `g{gene}_pos{position}_{MAF-class}{MAF}`, e.g.
    `g1_pos1_C0.26`. Naming happens last, so names reflect real structure rather
@@ -107,6 +109,15 @@ Example `params.json`:
   "number_of_genes": 4
 }
 ```
+
+### Memory limit for clustering
+
+Clustering compares every pair of SNPs, so memory grows with the **square** of
+the SNP count (`n_loci * n_mutations`): roughly `8 * n_snps²` bytes at peak
+(≈ 12.8 GB for the 2000 × 20 example above). The pipeline refuses to start a
+run that would need more than `--max_cluster_memory_gb` (default `4`). Raise it
+if the machine has the memory, e.g.
+`python scripts/simulate_population.py --max_cluster_memory_gb 16`.
 
 ---
 
