@@ -46,7 +46,15 @@ After this, edits to any file in `helpers/` are picked up automatically — no
 reinstall needed.
 
 Requires Python ≥ 3.10. Dependencies: `numpy`, `pandas`, `scipy`,
-`scikit-learn`, `matplotlib`, `pyarrow`.
+`scikit-learn`, `matplotlib`, `pyarrow` (minimum versions in `pyproject.toml`).
+
+For a reproducible research run, install the exact versions the pipeline was
+tested with from `requirements.txt` first:
+
+```bash
+pip install -r requirements.txt
+pip install --no-deps -e .
+```
 
 ---
 
