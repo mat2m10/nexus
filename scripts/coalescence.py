@@ -109,13 +109,13 @@ def plot(args, coords, stem):
     """Render grid and PCA figures as PNGs in --outdir.
 
     The visualize_* call signatures below are assumed from the helper names;
-    adjust them to match your actual helpers/vizualisation.py API.
+    adjust them to match your actual helpers/visualization.py API.
     """
     import matplotlib
     matplotlib.use("Agg")  # headless-safe: saves files without a display.
     import matplotlib.pyplot as plt
 
-    from helpers.vizualisation import (
+    from helpers.visualization import (
         build_deme_colors,
         visualize_grid,
         visualize_pca,

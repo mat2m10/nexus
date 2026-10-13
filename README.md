@@ -162,6 +162,24 @@ Re-running the pipeline **does not overwrite a grid you have already filled in**
 Pass `--force-grid` to reset it to a blank template — needed if you change `k` or
 `number_of_genes`, since the grid's shape then differs.
 
+### Painting the grid in a browser
+
+`tools/grid_painter.html` is a self-contained page (no server, no install):
+open it in a browser, set `k` and `number_of_genes` (or **Import CSV** an
+existing `population_gene_map_k{k}_g{g}.csv`), then click or drag to paint
+values per (deme, gene) cell. It exports two files:
+
+- **grid CSV** — the same tidy `population_gene_map_k{k}_g{g}.csv` format as
+  above, so it can be loaded back with `popmap.load_map`;
+- **`selection_targets.json`** — only the painted (non-zero, palette-coloured)
+  cells, as `{"<deme + 1>": {"gene_<g>": [r, g, b], ...}, ...}`. Keys are
+  1-based deme ids (the `population` labels in the genotype tables).
+
+The `selection_targets.json` at the repo root is an example of that export. It
+is read by `notebooks/02_divide_into_genes.ipynb` (the selection-grid cells
+load it as `fitness_targets` for the forward-in-time selection experiment),
+relative to the notebook's working directory.
+
 ---
 
 ## Project layout
@@ -178,7 +196,10 @@ nexus/
     ├── tree.py                       # coalescent simulation -> G
     ├── phenotype.py                  # assigns individuals to populations
     ├── popmap.py                     # the population × gene grid
-    └── vizualisation.py              # plotting helpers
+    └── visualization.py              # plotting helpers
+tools/
+└── grid_painter.html                 # browser editor for the population × gene grid
+selection_targets.json                # painted selection targets read by notebook 02
 ```
 
 ---
