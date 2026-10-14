@@ -98,7 +98,7 @@ Parameters come from `params.json` (overridable on the CLI). `F` and
 | `n_mutations`     | Number of mutations dropped onto the genealogy            | `20`    |
 | `random_seed`     | RNG seed — controls reproducibility                        | `42`    |
 | `F`               | Inbreeding coefficient for the HWE genotype draw           | `0.1`   |
-| `number_of_genes` | Number of SNP clusters ("genes") to form                  | `4`     |
+| `number_of_genes` | Number of SNP clusters ("genes"); `2 ≤ g ≤ n_loci * n_mutations` | `4`     |
 
 Example `params.json`:
 

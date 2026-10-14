@@ -57,7 +57,21 @@ def parse_args():
     parser.add_argument("--plot", action="store_true",
                         help="Save PCA, dendrogram, and grid-preview figures.")
     parser.set_defaults(**config)
-    return parser.parse_args()
+    args = parser.parse_args()
+    validate_args(parser, args)
+    return args
+
+
+def validate_args(parser, args):
+    """Reject parameter combinations the pipeline cannot honour."""
+    n_snps = args.n_loci * args.n_mutations
+    if args.number_of_genes < 2:
+        parser.error(f"number_of_genes must be >= 2 (got {args.number_of_genes}).")
+    if args.number_of_genes > n_snps:
+        parser.error(
+            f"number_of_genes ({args.number_of_genes}) exceeds the number of SNPs "
+            f"n_loci * n_mutations = {n_snps}."
+        )
 
 
 # --- stage 1: coalescent simulation -----------------------------------------
@@ -180,8 +194,13 @@ def save_plots(args, chromosome, Z, out, stem):
 
     plt.figure(figsize=(12, 4))
     dendrogram(Z, no_labels=True, truncate_mode="lastp", p=50)
+    # Cut between the merge heights that separate g clusters from g - 1.
+    # Needs g >= 2 (validate_args); with g == n_snps there is no lower merge.
     g = args.number_of_genes
-    cut = (Z[-g, 2] + Z[-(g - 1), 2]) / 2
+    heights = Z[:, 2]
+    upper = heights[-(g - 1)]
+    lower = heights[-g] if g <= len(heights) else 0.0
+    cut = (lower + upper) / 2
     plt.axhline(y=cut, color="r", linestyle="--", label=f"cut @ {cut:.2f}")
     plt.title("SNP dendrogram")
     plt.legend()
