@@ -16,12 +16,18 @@ from a seed, and outputs are plain `.npz` / `.parquet` / `.csv` files.
 A single run of `scripts/simulate_population.py` performs the whole pipeline:
 
 1. **Coalescent simulation** on a `k × k` stepping-stone grid of demes, producing
-   an ancestral genotype matrix `G` (loci × haplotypes).
+   an ancestral genotype matrix `G` (SNPs × haplotypes, `1` = carries the
+   mutation). One independent coalescent tree is simulated per locus and
+   `n_mutations` mutations are dropped on **each** tree, so `G` has
+   `n_loci * n_mutations` rows (see [SNPs, loci and linkage](#snps-loci-and-linkage)).
 2. **Diploid genotypes** are drawn under Hardy–Weinberg with an inbreeding
-   coefficient `F`. Genotypes are encoded as `1` = major homozygote,
-   `0` = heterozygote, `-1` = minor homozygote.
-3. SNPs with minor-allele frequency (MAF) above 0.5 are **flipped** so that `1`
-   always codes the minor allele.
+   coefficient `F`. At this stage `1` = homozygous for the non-mutated allele,
+   `0` = heterozygote, `-1` = homozygous for the mutated allele.
+3. SNPs whose `-1`-coded allele has frequency above 0.5 are **flipped**
+   (multiplied by `-1`), so that afterwards `-1` always codes the **minor**
+   allele. Final coding: `1` = major homozygote, `0` = heterozygote,
+   `-1` = minor homozygote. The reported MAF is the frequency of the
+   `-1`-coded allele (≤ 0.5).
 4. SNPs are **clustered into `number_of_genes` genes** by correlation
    (hierarchical clustering, Ward linkage).
 5. The genes are laid **end to end on one chromosome**, and each SNP is given a
@@ -95,7 +101,7 @@ Parameters come from `params.json` (overridable on the CLI). `F` and
 | `M`               | Migration parameter                                        | `0.5`   |
 | `n_per_deme`      | Individuals drawn per population                           | `100`   |
 | `n_loci`          | Number of loci simulated                                   | `2000`  |
-| `n_mutations`     | Number of mutations dropped onto the genealogy            | `20`    |
+| `n_mutations`     | Mutations dropped onto **each** locus's genealogy (per locus) | `20`    |
 | `random_seed`     | RNG seed — controls reproducibility                        | `42`    |
 | `F`               | Inbreeding coefficient for the HWE genotype draw           | `0.1`   |
 | `number_of_genes` | Number of SNP clusters ("genes"); `2 ≤ g ≤ n_loci * n_mutations` | `4`     |
@@ -115,6 +121,18 @@ Example `params.json`:
   "number_of_genes": 4
 }
 ```
+
+### SNPs, loci and linkage
+
+`n_mutations` is a **per-locus** count, not a total:
+
+- total SNPs = `n_loci * n_mutations` (e.g. 2000 × 20 = 40 000 SNPs);
+- all `n_mutations` SNPs of a locus are dropped on the **same** coalescent
+  tree, so they are fully linked (no recombination within a locus), and two
+  mutations that land on the same branch give identical SNPs;
+- different loci use independent trees, so they are unlinked.
+
+Keep this in mind when sizing runs: clustering compares every pair of SNPs.
 
 ---
 

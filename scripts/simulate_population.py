@@ -100,7 +100,12 @@ def population_frequencies(G, humans, rng):
 
 
 def generate_genotypes(freq_df, F, n_individuals, rng):
-    """Draw diploid genotypes (1=major hom, 0=het, -1=minor hom) under HWE + F."""
+    """Draw diploid genotypes under HWE + F.
+
+    `freq_df` holds the frequency q of the mutated allele (G == 1). Coding at
+    this stage: 1 = homozygous non-mutated, 0 = het, -1 = homozygous mutated.
+    `flip_to_minor` later makes -1 the minor homozygote.
+    """
     dfs = []
     for pop, row in freq_df.iterrows():
         q = row.values
@@ -130,7 +135,8 @@ def _maf_prefix(m):
 
 
 def flip_to_minor(genotype_df):
-    """Flip SNPs with MAF > 0.5 so 1 is the minor-coded allele; return final MAF."""
+    """Flip SNPs whose -1-coded allele has frequency > 0.5, so that -1 is always
+    the minor homozygote (1 = major hom, 0 = het); return the final MAF."""
     snp_cols = [c for c in genotype_df.columns if c != "population"]
     maf = _maf(genotype_df, snp_cols)
     flip = maf[maf > 0.5].index
