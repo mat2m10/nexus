@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Coalescent simulation on a k x k stepping-stone grid of demes.
+"""LEGACY -- superseded by scripts/simulate_population.py (the single pipeline
+entry point). Kept for reference only; not maintained.
+
+Coalescent simulation on a k x k stepping-stone grid of demes.
 
 Parameters come from a JSON config (default: <project_root>/params.json) and
 can be overridden individually on the command line, e.g.:
 
-    python scripts/coalescence.py
-    python scripts/coalescence.py --Ne 5000 --random_seed 42
-    python scripts/coalescence.py --config bigNe.json --k 8
-    python scripts/coalescence.py --plot
+    python legacy/coalescence.py
+    python legacy/coalescence.py --Ne 5000 --random_seed 42
+    python legacy/coalescence.py --config bigNe.json --k 8
+    python legacy/coalescence.py --plot
 
 Requires the project to be installed in editable mode so `helpers` resolves:
 
@@ -109,13 +112,13 @@ def plot(args, coords, stem):
     """Render grid and PCA figures as PNGs in --outdir.
 
     The visualize_* call signatures below are assumed from the helper names;
-    adjust them to match your actual helpers/vizualisation.py API.
+    adjust them to match your actual helpers/visualization.py API.
     """
     import matplotlib
     matplotlib.use("Agg")  # headless-safe: saves files without a display.
     import matplotlib.pyplot as plt
 
-    from helpers.vizualisation import (
+    from helpers.visualization import (
         build_deme_colors,
         visualize_grid,
         visualize_pca,

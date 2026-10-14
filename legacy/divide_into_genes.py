@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Stage 2: turn the coalescent genotype matrix into gene blocks on one chromosome.
+"""LEGACY -- superseded by scripts/simulate_population.py (the single pipeline
+entry point). Kept for reference only; not maintained.
 
-Loads the G_*.npz produced by 01_coalescence.py, draws diploid genotypes under
+Stage 2: turn the coalescent genotype matrix into gene blocks on one chromosome.
+
+Loads the G_*.npz produced by legacy/coalescence.py, draws diploid genotypes under
 Hardy-Weinberg with an inbreeding coefficient F, labels/sorts SNPs by minor-allele
 frequency, clusters them into `number_of_genes` correlated blocks ("genes"), and
 lays those gene blocks end to end into one annotated chromosome.
 
-    python scripts/divide_into_genes.py
-    python scripts/divide_into_genes.py --F 0.2 --number_of_genes 6
-    python scripts/divide_into_genes.py --plot
+    python legacy/divide_into_genes.py
+    python legacy/divide_into_genes.py --F 0.2 --number_of_genes 6
+    python legacy/divide_into_genes.py --plot
 
 Requires the project installed in editable mode so `helpers` resolves:
 
@@ -177,7 +180,7 @@ def save_plots(args, genotype_df, Z, out, stem):
     from scipy.cluster.hierarchy import dendrogram
     from sklearn.decomposition import PCA
 
-    from helpers.vizualisation import build_deme_colors, visualize_pca
+    from helpers.visualization import build_deme_colors, visualize_pca
 
     snp_cols = [c for c in genotype_df.columns if c != "population"]
     G_f = genotype_df[snp_cols]
@@ -213,7 +216,7 @@ def main():
     if not os.path.exists(npz_path):
         raise SystemExit(
             f"Stage-1 output not found: {npz_path}\n"
-            f"Run scripts/01_coalescence.py first (with matching params)."
+            f"Run legacy/coalescence.py first (with matching params)."
         )
     G = np.load(npz_path)["G"]
 
