@@ -198,6 +198,7 @@ nexus/
 ├── pyproject.toml                    # package definition (pip install -e .)
 ├── scripts/
 │   └── simulate_population.py        # the whole pipeline, one entry point
+├── legacy/                           # superseded two-stage scripts (reference only)
 └── helpers/                          # installed package
     ├── cli.py                        # shared config / argument plumbing
     ├── grid.py                       # k × k deme grid + neighbours
