@@ -180,7 +180,7 @@ def save_plots(args, genotype_df, Z, out, stem):
     from scipy.cluster.hierarchy import dendrogram
     from sklearn.decomposition import PCA
 
-    from helpers.vizualisation import build_deme_colors, visualize_pca
+    from helpers.visualization import build_deme_colors, visualize_pca
 
     snp_cols = [c for c in genotype_df.columns if c != "population"]
     G_f = genotype_df[snp_cols]
