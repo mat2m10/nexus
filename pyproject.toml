@@ -17,6 +17,12 @@ dependencies = [
     "pandas>=2.1.4",          # for the parquet-based gene scripts
     "pyarrow>=14.0.2",        # parquet engine for pandas
 ]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
  
 [tool.setuptools]
 # Only ship the helpers package; ignore scripts/, notebooks/, data/.
