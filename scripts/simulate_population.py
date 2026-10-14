@@ -66,7 +66,21 @@ def parse_args():
     parser.add_argument("--plot", action="store_true",
                         help="Save PCA, dendrogram, and grid-preview figures.")
     parser.set_defaults(**config)
-    return parser.parse_args()
+    args = parser.parse_args()
+    validate_args(parser, args)
+    return args
+
+
+def validate_args(parser, args):
+    """Reject parameter combinations the pipeline cannot honour."""
+    n_snps = args.n_loci * args.n_mutations
+    if args.number_of_genes < 2:
+        parser.error(f"number_of_genes must be >= 2 (got {args.number_of_genes}).")
+    if args.number_of_genes > n_snps:
+        parser.error(
+            f"number_of_genes ({args.number_of_genes}) exceeds the number of SNPs "
+            f"n_loci * n_mutations = {n_snps}."
+        )
 
 
 # --- stage 1: coalescent simulation -----------------------------------------
@@ -95,7 +109,12 @@ def population_frequencies(G, humans, rng):
 
 
 def generate_genotypes(freq_df, F, n_individuals, rng):
-    """Draw diploid genotypes (1=major hom, 0=het, -1=minor hom) under HWE + F."""
+    """Draw diploid genotypes under HWE + F.
+
+    `freq_df` holds the frequency q of the mutated allele (G == 1). Coding at
+    this stage: 1 = homozygous non-mutated, 0 = het, -1 = homozygous mutated.
+    `flip_to_minor` later makes -1 the minor homozygote.
+    """
     dfs = []
     for pop, row in freq_df.iterrows():
         q = row.values
@@ -125,7 +144,8 @@ def _maf_prefix(m):
 
 
 def flip_to_minor(genotype_df):
-    """Flip SNPs with MAF > 0.5 so 1 is the minor-coded allele; return final MAF."""
+    """Flip SNPs whose -1-coded allele has frequency > 0.5, so that -1 is always
+    the minor homozygote (1 = major hom, 0 = het); return the final MAF."""
     snp_cols = [c for c in genotype_df.columns if c != "population"]
     maf = _maf(genotype_df, snp_cols)
     flip = maf[maf > 0.5].index
@@ -233,8 +253,13 @@ def save_plots(args, chromosome, Z, out, stem):
 
     plt.figure(figsize=(12, 4))
     dendrogram(Z, no_labels=True, truncate_mode="lastp", p=50)
+    # Cut between the merge heights that separate g clusters from g - 1.
+    # Needs g >= 2 (validate_args); with g == n_snps there is no lower merge.
     g = args.number_of_genes
-    cut = (Z[-g, 2] + Z[-(g - 1), 2]) / 2
+    heights = Z[:, 2]
+    upper = heights[-(g - 1)]
+    lower = heights[-g] if g <= len(heights) else 0.0
+    cut = (lower + upper) / 2
     plt.axhline(y=cut, color="r", linestyle="--", label=f"cut @ {cut:.2f}")
     plt.title("SNP dendrogram")
     plt.legend()

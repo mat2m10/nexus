@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Coalescent simulation on a k x k stepping-stone grid of demes.
+"""LEGACY -- superseded by scripts/simulate_population.py (the single pipeline
+entry point). Kept for reference only; not maintained.
+
+Coalescent simulation on a k x k stepping-stone grid of demes.
 
 Parameters come from a JSON config (default: <project_root>/params.json) and
 can be overridden individually on the command line, e.g.:
 
-    python scripts/coalescence.py
-    python scripts/coalescence.py --Ne 5000 --random_seed 42
-    python scripts/coalescence.py --config bigNe.json --k 8
-    python scripts/coalescence.py --plot
+    python legacy/coalescence.py
+    python legacy/coalescence.py --Ne 5000 --random_seed 42
+    python legacy/coalescence.py --config bigNe.json --k 8
+    python legacy/coalescence.py --plot
 
 Requires the project to be installed in editable mode so `helpers` resolves:
 

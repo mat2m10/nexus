@@ -1,5 +1,8 @@
 import numpy as np
 
+from bisect import bisect_left, insort
+
+
 def simulate_tree(k, n_per_deme, Ne, M, neighbors, rng):
     """
     Simulate a single coalescent tree on a k×k stepping-stone grid.
@@ -7,6 +10,13 @@ def simulate_tree(k, n_per_deme, Ne, M, neighbors, rng):
         nodes      : list of (time, left, right) for each internal node
                      left/right are indices into the full node list
         n_samples  : number of leaf nodes (first n_samples entries)
+
+    Performance note: instead of scanning every lineage with ``np.where`` on
+    each event, a sorted list of active lineage slots is kept per deme. The
+    random draws are made with ``rng.choice(L)`` on the candidate count and
+    mapped to the L-th smallest slot, which consumes the generator exactly like
+    the former ``rng.choice(candidates)`` on the ascending candidate array, so
+    output for a fixed seed is unchanged.
     """
     n_demes  = k * k
     n_tot    = n_demes * n_per_deme
@@ -16,6 +26,10 @@ def simulate_tree(k, n_per_deme, Ne, M, neighbors, rng):
     pop_list = np.repeat(np.arange(n_demes), n_per_deme)  # deme of each lineage
     k_list   = np.arange(n_tot, dtype=int)                 # node id of each lineage
     n        = np.array([n_per_deme] * n_demes, dtype=float)  # lineage count per deme
+
+    # Active lineage slots per deme, kept sorted (same order as np.where gave)
+    slots = [list(range(m * n_per_deme, (m + 1) * n_per_deme)) for m in range(n_demes)]
+    n_nbrs = np.array([len(neighbors[m]) for m in range(n_demes)])
 
     # Node records: (time, daughter1, daughter2)
     # Leaves have time=0, daughters=-1
@@ -32,7 +46,7 @@ def simulate_tree(k, n_per_deme, Ne, M, neighbors, rng):
     while n_sum > 1:
         # ── Rates ──
         rate_co  = n * (n - 1) / (2 * Ne)          # coalescence rate per deme
-        rate_mig = mig_rate_per_lineage * n * np.array([len(neighbors[m]) for m in range(n_demes)])
+        rate_mig = mig_rate_per_lineage * n * n_nbrs
 
         rate_co_tot  = rate_co.sum()
         rate_mig_tot = rate_mig.sum()
@@ -45,21 +59,23 @@ def simulate_tree(k, n_per_deme, Ne, M, neighbors, rng):
         if rng.random() < rate_mig_tot / rate_tot:
             # Migration: pick deme, pick lineage, move to random neighbor
             probs = rate_mig / rate_mig_tot
-            src   = rng.choice(n_demes, p=probs)
-            candidates = np.where(pop_list[:n_sum] == src)[0]
-            i     = rng.choice(candidates)
+            src   = int(rng.choice(n_demes, p=probs))
+            cands = slots[src]
+            i     = cands.pop(int(rng.choice(len(cands))))
             dst   = rng.choice(neighbors[src])
-            n[pop_list[i]] -= 1
-            n[dst]         += 1
-            pop_list[i]     = dst
+            n[src] -= 1
+            n[dst] += 1
+            pop_list[i] = dst
+            insort(slots[dst], i)
 
         else:
             # Coalescence: pick deme, pick 2 lineages, merge
             probs    = rate_co / rate_co_tot
-            which    = rng.choice(n_demes, p=probs)
-            cands    = np.where(pop_list[:n_sum] == which)[0]
-            pair     = rng.choice(cands, size=2, replace=False)
-            a, b     = pair[0], pair[1]
+            which    = int(rng.choice(n_demes, p=probs))
+            cands    = slots[which]
+            ia, ib   = rng.choice(len(cands), size=2, replace=False)
+            a, b     = cands[ia], cands[ib]
+            lo, hi   = min(a, b), max(a, b)
 
             # Record internal node
             node_times[current_node] = t
@@ -67,10 +83,17 @@ def simulate_tree(k, n_per_deme, Ne, M, neighbors, rng):
             node_d2[current_node]    = k_list[b]
 
             # Replace one lineage with new node, remove the other
-            k_list[min(a,b)]   = current_node
-            pop_list[min(a,b)] = which
-            k_list[max(a,b)]   = k_list[n_sum-1]
-            pop_list[max(a,b)] = pop_list[n_sum-1]
+            k_list[lo]   = current_node
+            pop_list[lo] = which
+            del cands[bisect_left(cands, hi)]
+            last = n_sum - 1
+            if last != hi:
+                d = pop_list[last]
+                lst = slots[d]
+                del lst[bisect_left(lst, last)]
+                insort(lst, hi)
+            k_list[hi]   = k_list[last]
+            pop_list[hi] = pop_list[last]
 
             n[which]      -= 1
             n_sum         -= 1
@@ -93,11 +116,11 @@ def drop_mutations(node_times, node_d1, node_d2, n_tot, n_mutations, rng):
     # = time of parent - time of node
     # Root has no parent → branch length 0
     branch_lengths = np.zeros(n_nodes)
-    for i in range(n_tot, n_nodes):          # loop over internal nodes
-        d1 = node_d1[i]
-        d2 = node_d2[i]
-        branch_lengths[d1] = node_times[i] - node_times[d1]
-        branch_lengths[d2] = node_times[i] - node_times[d2]
+    internal = np.arange(n_tot, n_nodes)
+    d1 = node_d1[internal]
+    d2 = node_d2[internal]
+    branch_lengths[d1] = node_times[internal] - node_times[d1]
+    branch_lengths[d2] = node_times[internal] - node_times[d2]
 
     # Sample mutation positions proportional to branch length
     total_bl = branch_lengths.sum()
@@ -107,12 +130,38 @@ def drop_mutations(node_times, node_d1, node_d2, n_tot, n_mutations, rng):
     probs      = branch_lengths / total_bl
     mut_nodes  = rng.choice(n_nodes, size=n_mutations, p=probs)
 
-    # For each mutation, find all leaf descendants
+    # For each mutation, set all leaf descendants (a contiguous block in a
+    # depth-first leaf ordering, computed once per tree)
+    order, start, count = _leaf_order(node_d1, node_d2, n_tot)
     genotypes = np.zeros((n_mutations, n_tot), dtype=np.int8)
     for mi, mut_node in enumerate(mut_nodes):
-        genotypes[mi] = get_descendants(mut_node, node_d1, node_d2, n_tot)
+        s = start[mut_node]
+        genotypes[mi, order[s:s + count[mut_node]]] = 1
 
     return genotypes
+
+
+def _leaf_order(node_d1, node_d2, n_tot):
+    """Depth-first leaf ordering of the tree.
+
+    Returns (order, start, count): the leaves under node ``v`` are exactly
+    ``order[start[v]:start[v] + count[v]]``. Daughters always have smaller ids
+    than their parent, so one ascending and one descending pass suffice.
+    """
+    n_nodes = 2 * n_tot - 1
+    d1 = node_d1.tolist()
+    d2 = node_d2.tolist()
+    count = [1] * n_tot + [0] * (n_nodes - n_tot)
+    for v in range(n_tot, n_nodes):
+        count[v] = count[d1[v]] + count[d2[v]]
+    start = [0] * n_nodes
+    for v in range(n_nodes - 1, n_tot - 1, -1):
+        s = start[v]
+        start[d1[v]] = s
+        start[d2[v]] = s + count[d1[v]]
+    order = np.empty(n_tot, dtype=int)
+    order[np.asarray(start[:n_tot], dtype=int)] = np.arange(n_tot)
+    return order, start, count
 
 
 def get_descendants(node, node_d1, node_d2, n_tot):
