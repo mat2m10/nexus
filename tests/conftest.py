@@ -1,6 +1,6 @@
 """Shared fixtures: tiny parameter sets so the whole suite runs in seconds."""
 
-import importlib.util
+import importlib
 import json
 from pathlib import Path
 
@@ -24,11 +24,8 @@ TINY_PARAMS = {
 
 @pytest.fixture(scope="session")
 def pipeline():
-    """The pipeline script imported as a module (scripts/ is not a package)."""
-    spec = importlib.util.spec_from_file_location("simulate_population", SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    """The pipeline module (scripts/simulate_population.py is a thin wrapper)."""
+    return importlib.import_module("helpers.pipeline")
 
 
 @pytest.fixture

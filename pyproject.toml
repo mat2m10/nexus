@@ -18,6 +18,9 @@ dependencies = [
     "pyarrow>=14.0.2",        # parquet engine for pandas
 ]
 
+[project.scripts]
+nexus = "helpers.pipeline:main"
+
 [project.optional-dependencies]
 test = ["pytest>=8"]
 

@@ -13,7 +13,7 @@ from a seed, and outputs are plain `.npz` / `.parquet` / `.csv` files.
 
 ## What it does
 
-A single run of `scripts/simulate_population.py` performs the whole pipeline:
+A single run of `nexus` (or `scripts/simulate_population.py`) performs the whole pipeline:
 
 1. **Coalescent simulation** on a `k × k` stepping-stone grid of demes, producing
    an ancestral genotype matrix `G` (SNPs × haplotypes, `1` = carries the
@@ -49,7 +49,8 @@ The project is a package, so install it once in editable mode from the repo root
 pip install -e .
 ```
 
-This makes `import helpers` work from anywhere and installs the dependencies.
+This makes `import helpers` work from anywhere, installs the dependencies and
+puts a `nexus` command on your `PATH`.
 After this, edits to any file in `helpers/` are picked up automatically — no
 reinstall needed.
 
@@ -68,26 +69,31 @@ pip install --no-deps -e .
 
 ## Quick start
 
-Run with the defaults from `params.json`:
+Run with the defaults from `params.json` in the current directory:
 
 ```bash
-python scripts/simulate_population.py
+nexus
 ```
 
 Add figures (PCA, clustering dendrogram, grid preview):
 
 ```bash
-python scripts/simulate_population.py --plot
+nexus --plot
 ```
 
 Any parameter can be overridden on the command line without editing the config:
 
 ```bash
-python scripts/simulate_population.py --number_of_genes 9 --F 0.2 --plot
+nexus --number_of_genes 9 --F 0.2 --plot
+nexus --config path/to/params.json --outdir runs/run1
 ```
 
-The script works from any directory — paths are resolved relative to the project
-root. Run `python scripts/simulate_population.py --help` for the full list.
+Run `nexus --help` for the full list.
+
+`nexus` reads `params.json` and writes `data/` relative to the **current working
+directory**. The equivalent `python scripts/simulate_population.py` resolves both
+relative to the **repository root** instead, so it works from any directory in a
+checkout. Both accept the same flags.
 
 ---
 
@@ -167,6 +173,25 @@ Each `gene_*.parquet` and `chromosome.parquet` has one row per individual: the
 SNP columns plus a `population` column. With `--plot`, PCA and dendrogram PNGs
 land in `data/genes/`, and a grid preview PNG in `data/`.
 
+### PLINK / VCF export
+
+Pass `--export vcf`, `--export plink` or `--export vcf plink` to also write the
+whole chromosome for downstream tools (plink2, pop_estimator, pca_projection):
+
+```
+data/genes/
+├── chromosome.vcf                      # VCF 4.2, unphased GT
+└── chromosome.bed / .bim / .fam        # PLINK1 binary, SNP-major
+```
+
+- Alleles are synthetic: the major allele is written as `A`, the minor as `C`.
+  In the VCF, `REF=A`, `ALT=C`, so `1 → 0/0`, `0 → 0/1`, `-1 → 1/1`. In the
+  `.bim`, `A1 = C` (minor) and `A2 = A` (major).
+- Everything is on chromosome `1`; `POS` / bp position is the SNP's position on
+  the chromosome, and the ID is its final name (e.g. `g1_pos1_C0.26`).
+- Samples are named `pop{population}_ind{i}`; in the `.fam`, `FID` is the
+  population number, so `plink2 --keep-fam` / `--within` work per deme.
+
 ---
 
 ## The population × gene grid
@@ -227,9 +252,11 @@ nexus/
 ├── params.json                       # default parameters
 ├── pyproject.toml                    # package definition (pip install -e .)
 ├── scripts/
-│   └── simulate_population.py        # the whole pipeline, one entry point
+│   └── simulate_population.py        # wrapper: runs the pipeline from the repo root
 ├── legacy/                           # superseded two-stage scripts (reference only)
 └── helpers/                          # installed package
+    ├── pipeline.py                   # the whole pipeline (`nexus` command)
+    ├── export.py                     # VCF / PLINK writers
     ├── cli.py                        # shared config / argument plumbing
     ├── grid.py                       # k × k deme grid + neighbours
     ├── tree.py                       # coalescent simulation -> G
