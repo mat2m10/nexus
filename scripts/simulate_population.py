@@ -36,6 +36,10 @@ from helpers.phenotype import attach_populations
 
 ROOT = cli.project_root_of(__file__)
 
+# pdist + Ward linkage hold ~2 condensed float64 distance matrices at peak
+# (linkage works on its own copy), i.e. about 8 * n_snps**2 bytes.
+DEFAULT_MAX_CLUSTER_MEMORY_GB = 4.0
+
 
 def parse_args():
     parser, config = cli.base_parser(__doc__, ROOT)
@@ -50,6 +54,11 @@ def parse_args():
                         help="Inbreeding coefficient for the HWE genotype draw.")
     parser.add_argument("--number_of_genes", type=int, default=4,
                         help="Number of SNP clusters ('genes') to form.")
+    parser.add_argument("--max_cluster_memory_gb", type=float,
+                        default=DEFAULT_MAX_CLUSTER_MEMORY_GB,
+                        help="Abort before clustering if the pairwise SNP distance "
+                             "matrices would need more than this many GB "
+                             "(default: %(default)s).")
     parser.add_argument("--outdir", default=os.path.join(ROOT, "data"),
                         help="Directory for output files.")
     parser.add_argument("--force-grid", dest="force_grid", action="store_true",
@@ -57,7 +66,21 @@ def parse_args():
     parser.add_argument("--plot", action="store_true",
                         help="Save PCA, dendrogram, and grid-preview figures.")
     parser.set_defaults(**config)
-    return parser.parse_args()
+    args = parser.parse_args()
+    validate_args(parser, args)
+    return args
+
+
+def validate_args(parser, args):
+    """Reject parameter combinations the pipeline cannot honour."""
+    n_snps = args.n_loci * args.n_mutations
+    if args.number_of_genes < 2:
+        parser.error(f"number_of_genes must be >= 2 (got {args.number_of_genes}).")
+    if args.number_of_genes > n_snps:
+        parser.error(
+            f"number_of_genes ({args.number_of_genes}) exceeds the number of SNPs "
+            f"n_loci * n_mutations = {n_snps}."
+        )
 
 
 # --- stage 1: coalescent simulation -----------------------------------------
@@ -86,7 +109,12 @@ def population_frequencies(G, humans, rng):
 
 
 def generate_genotypes(freq_df, F, n_individuals, rng):
-    """Draw diploid genotypes (1=major hom, 0=het, -1=minor hom) under HWE + F."""
+    """Draw diploid genotypes under HWE + F.
+
+    `freq_df` holds the frequency q of the mutated allele (G == 1). Coding at
+    this stage: 1 = homozygous non-mutated, 0 = het, -1 = homozygous mutated.
+    `flip_to_minor` later makes -1 the minor homozygote.
+    """
     dfs = []
     for pop, row in freq_df.iterrows():
         q = row.values
@@ -116,7 +144,8 @@ def _maf_prefix(m):
 
 
 def flip_to_minor(genotype_df):
-    """Flip SNPs with MAF > 0.5 so 1 is the minor-coded allele; return final MAF."""
+    """Flip SNPs whose -1-coded allele has frequency > 0.5, so that -1 is always
+    the minor homozygote (1 = major hom, 0 = het); return the final MAF."""
     snp_cols = [c for c in genotype_df.columns if c != "population"]
     maf = _maf(genotype_df, snp_cols)
     flip = maf[maf > 0.5].index
@@ -124,9 +153,53 @@ def flip_to_minor(genotype_df):
     return genotype_df, _maf(genotype_df, snp_cols)  # recompute after flip
 
 
-def cluster_into_genes(genotype_df, number_of_genes):
-    """Hierarchically cluster SNPs by correlation into `number_of_genes` groups."""
+def cluster_memory_gb(n_snps):
+    """Approximate peak memory (GB) of pdist + linkage for `n_snps` SNPs."""
+    condensed = n_snps * (n_snps - 1) // 2 * 8  # float64 condensed matrix
+    return 2 * condensed / 1e9
+
+
+def check_cluster_memory(n_snps, max_memory_gb):
+    """SystemExit if clustering `n_snps` SNPs would exceed `max_memory_gb`."""
+    need_gb = cluster_memory_gb(n_snps)
+    if need_gb > max_memory_gb:
+        raise SystemExit(
+            f"Clustering {n_snps} SNPs needs about {need_gb:.3g} GB "
+            f"(> --max_cluster_memory_gb {max_memory_gb:g}). Reduce n_loci or "
+            f"n_mutations (total SNPs = n_loci * n_mutations), or raise the limit "
+            f"if this machine has the memory."
+        )
+
+
+def monomorphic_snps(genotype_df):
+    """SNP columns with zero variance (one genotype for every individual).
+
+    Their correlation distance to every other SNP is undefined (NaN), which
+    makes `linkage` fail, so they cannot be clustered.
+    """
     snp_cols = [c for c in genotype_df.columns if c != "population"]
+    X = genotype_df[snp_cols].to_numpy()
+    constant = (X == X[:1]).all(axis=0)
+    return [c for c, is_const in zip(snp_cols, constant) if is_const]
+
+
+def cluster_into_genes(genotype_df, number_of_genes,
+                       max_memory_gb=DEFAULT_MAX_CLUSTER_MEMORY_GB):
+    """Hierarchically cluster SNPs by correlation into `number_of_genes` groups.
+
+    `genotype_df` must not contain monomorphic SNPs (see `monomorphic_snps`).
+    Raises SystemExit, before allocating anything large, if the distance
+    matrices would exceed `max_memory_gb`.
+    """
+    snp_cols = [c for c in genotype_df.columns if c != "population"]
+    n_snps = len(snp_cols)
+    if n_snps < number_of_genes:
+        raise SystemExit(
+            f"Only {n_snps} polymorphic SNPs left, fewer than "
+            f"number_of_genes={number_of_genes}. Increase n_loci / n_mutations / "
+            f"n_per_deme or lower number_of_genes."
+        )
+    check_cluster_memory(n_snps, max_memory_gb)
     df_snps = genotype_df[snp_cols].T  # SNPs as rows, individuals as columns
     Z = linkage(pdist(df_snps.values, metric="correlation"), method="ward")
     labels = fcluster(Z, t=number_of_genes, criterion="maxclust")
@@ -180,8 +253,13 @@ def save_plots(args, chromosome, Z, out, stem):
 
     plt.figure(figsize=(12, 4))
     dendrogram(Z, no_labels=True, truncate_mode="lastp", p=50)
+    # Cut between the merge heights that separate g clusters from g - 1.
+    # Needs g >= 2 (validate_args); with g == n_snps there is no lower merge.
     g = args.number_of_genes
-    cut = (Z[-g, 2] + Z[-(g - 1), 2]) / 2
+    heights = Z[:, 2]
+    upper = heights[-(g - 1)]
+    lower = heights[-g] if g <= len(heights) else 0.0
+    cut = (lower + upper) / 2
     plt.axhline(y=cut, color="r", linestyle="--", label=f"cut @ {cut:.2f}")
     plt.title("SNP dendrogram")
     plt.legend()
@@ -192,6 +270,8 @@ def save_plots(args, chromosome, Z, out, stem):
 def main():
     args = parse_args()
     rng = np.random.default_rng(args.random_seed)
+    # Fail fast, before the (slow) coalescent, if clustering cannot fit.
+    check_cluster_memory(args.n_loci * args.n_mutations, args.max_cluster_memory_gb)
 
     out = Path(args.outdir)
     genes_dir = out / "genes"
@@ -208,7 +288,14 @@ def main():
     freq_df = population_frequencies(G, humans, rng)
     genotype_df = generate_genotypes(freq_df, args.F, args.n_per_deme, rng)
     genotype_df, maf = flip_to_minor(genotype_df)
-    snp_cluster_map, Z = cluster_into_genes(genotype_df, args.number_of_genes)
+    mono = monomorphic_snps(genotype_df)
+    if mono:
+        print(f"Dropping {len(mono)} monomorphic SNPs (zero variance, cannot be "
+              f"clustered) of {len(maf)}.")
+        genotype_df = genotype_df.drop(columns=mono)
+        maf = maf.drop(index=mono)
+    snp_cluster_map, Z = cluster_into_genes(genotype_df, args.number_of_genes,
+                                            args.max_cluster_memory_gb)
     chromosome, annotation = finalize_chromosome(genotype_df, snp_cluster_map, maf)
 
     # 3. one dataframe per gene (+ chromosome + annotation + linkage)

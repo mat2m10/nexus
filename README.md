@@ -16,14 +16,22 @@ from a seed, and outputs are plain `.npz` / `.parquet` / `.csv` files.
 A single run of `scripts/simulate_population.py` performs the whole pipeline:
 
 1. **Coalescent simulation** on a `k × k` stepping-stone grid of demes, producing
-   an ancestral genotype matrix `G` (loci × haplotypes).
+   an ancestral genotype matrix `G` (SNPs × haplotypes, `1` = carries the
+   mutation). One independent coalescent tree is simulated per locus and
+   `n_mutations` mutations are dropped on **each** tree, so `G` has
+   `n_loci * n_mutations` rows (see [SNPs, loci and linkage](#snps-loci-and-linkage)).
 2. **Diploid genotypes** are drawn under Hardy–Weinberg with an inbreeding
-   coefficient `F`. Genotypes are encoded as `1` = major homozygote,
-   `0` = heterozygote, `-1` = minor homozygote.
-3. SNPs with minor-allele frequency (MAF) above 0.5 are **flipped** so that `1`
-   always codes the minor allele.
+   coefficient `F`. At this stage `1` = homozygous for the non-mutated allele,
+   `0` = heterozygote, `-1` = homozygous for the mutated allele.
+3. SNPs whose `-1`-coded allele has frequency above 0.5 are **flipped**
+   (multiplied by `-1`), so that afterwards `-1` always codes the **minor**
+   allele. Final coding: `1` = major homozygote, `0` = heterozygote,
+   `-1` = minor homozygote. The reported MAF is the frequency of the
+   `-1`-coded allele (≤ 0.5).
 4. SNPs are **clustered into `number_of_genes` genes** by correlation
-   (hierarchical clustering, Ward linkage).
+   (hierarchical clustering, Ward linkage). Monomorphic SNPs (zero variance,
+   common with small `n_per_deme`) have no defined correlation, so they are
+   dropped first and the count is printed.
 5. The genes are laid **end to end on one chromosome**, and each SNP is given a
    final, meaningful name — `g{gene}_pos{position}_{MAF-class}{MAF}`, e.g.
    `g1_pos1_C0.26`. Naming happens last, so names reflect real structure rather
@@ -46,7 +54,15 @@ After this, edits to any file in `helpers/` are picked up automatically — no
 reinstall needed.
 
 Requires Python ≥ 3.10. Dependencies: `numpy`, `pandas`, `scipy`,
-`scikit-learn`, `matplotlib`, `pyarrow`.
+`scikit-learn`, `matplotlib`, `pyarrow` (minimum versions in `pyproject.toml`).
+
+For a reproducible research run, install the exact versions the pipeline was
+tested with from `requirements.txt` first:
+
+```bash
+pip install -r requirements.txt
+pip install --no-deps -e .
+```
 
 ---
 
@@ -87,10 +103,10 @@ Parameters come from `params.json` (overridable on the CLI). `F` and
 | `M`               | Migration parameter                                        | `0.5`   |
 | `n_per_deme`      | Individuals drawn per population                           | `100`   |
 | `n_loci`          | Number of loci simulated                                   | `2000`  |
-| `n_mutations`     | Number of mutations dropped onto the genealogy            | `20`    |
+| `n_mutations`     | Mutations dropped onto **each** locus's genealogy (per locus) | `20`    |
 | `random_seed`     | RNG seed — controls reproducibility                        | `42`    |
 | `F`               | Inbreeding coefficient for the HWE genotype draw           | `0.1`   |
-| `number_of_genes` | Number of SNP clusters ("genes") to form                  | `4`     |
+| `number_of_genes` | Number of SNP clusters ("genes"); `2 ≤ g ≤ n_loci * n_mutations` | `4`     |
 
 Example `params.json`:
 
@@ -107,6 +123,28 @@ Example `params.json`:
   "number_of_genes": 4
 }
 ```
+
+### SNPs, loci and linkage
+
+`n_mutations` is a **per-locus** count, not a total:
+
+- total SNPs = `n_loci * n_mutations` (e.g. 2000 × 20 = 40 000 SNPs);
+- all `n_mutations` SNPs of a locus are dropped on the **same** coalescent
+  tree, so they are fully linked (no recombination within a locus), and two
+  mutations that land on the same branch give identical SNPs;
+- different loci use independent trees, so they are unlinked.
+
+Keep this in mind when sizing runs: clustering compares every pair of SNPs
+(see [Memory limit for clustering](#memory-limit-for-clustering)).
+
+### Memory limit for clustering
+
+Clustering compares every pair of SNPs, so memory grows with the **square** of
+the SNP count (`n_loci * n_mutations`): roughly `8 * n_snps²` bytes at peak
+(≈ 12.8 GB for the 2000 × 20 example above). The pipeline refuses to start a
+run that would need more than `--max_cluster_memory_gb` (default `4`). Raise it
+if the machine has the memory, e.g.
+`python scripts/simulate_population.py --max_cluster_memory_gb 16`.
 
 ---
 
@@ -190,6 +228,7 @@ nexus/
 ├── pyproject.toml                    # package definition (pip install -e .)
 ├── scripts/
 │   └── simulate_population.py        # the whole pipeline, one entry point
+├── legacy/                           # superseded two-stage scripts (reference only)
 └── helpers/                          # installed package
     ├── cli.py                        # shared config / argument plumbing
     ├── grid.py                       # k × k deme grid + neighbours
@@ -200,6 +239,19 @@ nexus/
 tools/
 └── grid_painter.html                 # browser editor for the population × gene grid
 selection_targets.json                # painted selection targets read by notebook 02
+```
+
+---
+
+## Notebooks
+
+`notebooks/` holds exploratory notebooks. They are committed **without
+outputs** to keep the repository small. To strip outputs automatically on every
+commit, install [nbstripout](https://github.com/kynan/nbstripout) once per clone:
+
+```bash
+pip install nbstripout
+nbstripout --install --keep-id
 ```
 
 ---
