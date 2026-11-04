@@ -1,0 +1,12 @@
+nexus
+Copyright 2026 Matthieu de Hemptinne
+Licensed under the GNU General Public License v3.0 (see LICENSE).
+
+helpers/tree.py is a Python port of the coalescent simulation in kpop.c, by
+Iain Mathieson, which describes itself as a direct port of Gil McVean's R code.
+It was rewritten and changed from the original.
+Original work: Copyright 2011 Iain Mathieson, Apache License 2.0 (see LICENSE-APACHE).
+
+If you use this code, please also cite the paper that kpop.c accompanies:
+Mathieson I, McVean G. Differential confounding of rare and common variants in
+spatially structured populations. Nature Genetics, 2012.
