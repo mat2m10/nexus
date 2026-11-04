@@ -289,3 +289,7 @@ Every random step runs through a single seeded generator
 (`numpy.random.default_rng(random_seed)`), so the same parameters always produce
 identical outputs. The clustering linkage is saved so a gene split can be
 inspected or reproduced later.
+
+## License
+
+GPL-3.0, see [LICENSE](LICENSE). `helpers/tree.py` is a port of Iain Mathieson's Apache-2.0 `kpop.c`; see [NOTICE](NOTICE) for attribution and the paper to cite.
