@@ -1,3 +1,9 @@
+# Derived from kpop.c, Copyright 2011 Iain Mathieson, Apache License 2.0
+# (see LICENSE-APACHE and NOTICE). kpop.c describes itself as a direct port of
+# Gil McVean's R code.
+# Changed for nexus: rewritten in Python and adapted to this package.
+# These changes are licensed under GPL-3.0 (see LICENSE).
+
 import numpy as np
 
 from bisect import bisect_left, insort
